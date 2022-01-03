@@ -30,7 +30,7 @@ export default class Queue {
 	}
 
     enqueueFirst(item) {
-		this.splice(0, 0, [item])
+		this.splice(0, 0, item)
 	}
     
 	swap(index1, index2) {

@@ -171,9 +171,16 @@ export class Track {
 				// this track to get processed again. This is all in an attempt to try loading it again a couple of times (max 3)
 				// if loading fails after 3 attempts, the track is skipped
 				const spawnErrorHandler = async (error) => {
-					console.log(error.shortMessage);
-
+					
 					if (!process.killed) process.kill();
+
+					if (error.shortMessage.includes("ERR_STREAM_PREMATURE_CLOSE")) {
+						console.log("ERR_STREAM_PREMATURE_CLOSE (most likely the song was skipped)")
+						stream.resume();
+						return;
+					}
+
+					console.log("Process spawning error:", error.shortMessage);
 
 					// Sometimes the video fails to download with exit code 1. Usually trying 1 more attempt after fixes the issue.
 					// In rarer cases, sometimes a youtube URL doesn't work at all with youtubedl.exec no matter how many times we try
