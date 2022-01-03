@@ -131,9 +131,6 @@ export class Track {
 			// If they do not supply a URL, they must supply a title and an author so we can search youtube for the song and grab a URL for them
 			if (!this.youtube_url) {
 
-				if (!this.spotify_title)
-					return reject('I am a bad coder')
-
 				searchYoutube({ songName: this.spotify_title, author: this.getSpotifyAuthorString(2), uncensoredLyrics: true }).then((searchResults) => {
 
 					if (!searchResults) {

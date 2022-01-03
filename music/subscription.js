@@ -210,7 +210,7 @@ export class MusicSubscription {
 	 */
 	async processQueue() {
 		this.wait = false;
-		console.log('processing queue. what will be taken out? ', this.queue[0]?.youtube_title ?? this.queue[0]?.spotify_title)
+		console.log('processing queue. what will be taken out? ', this.queue.get(0)?.youtube_title ?? this.queue.get(0)?.spotify_title)
 
 
 		// If the queue is locked (already being processed), is empty, or the audio player is already playing something, return

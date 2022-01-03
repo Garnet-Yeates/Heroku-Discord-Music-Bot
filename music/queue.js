@@ -23,7 +23,6 @@ export default class Queue {
 
 	get(index) {
 		return this.internal[index];
-	
 	}
 
     enqueue(...items) {
@@ -31,8 +30,7 @@ export default class Queue {
 	}
 
     enqueueFirst(item) {
-        this.enqueue(item);
-		this.swap(0, this.internal.length - 1);
+		this.splice(0, 0, [item])
 	}
     
 	swap(index1, index2) {

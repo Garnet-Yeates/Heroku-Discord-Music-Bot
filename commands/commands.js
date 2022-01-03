@@ -156,7 +156,6 @@ const commands = {
 
             }
             else {
-
                 const subscription = subscriptions.get(interaction.guildId)
 
                 if (!subscription)
