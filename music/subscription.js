@@ -162,7 +162,6 @@ export class MusicSubscription {
 				}
 				catch {
 					this.lastTextChannel.send("Left the channel because you guys weren't giving me attention :(")
-					console.log("Left the voice channel due to inactivity")
 
 					// If it is not already destroyed (e.g: it was disconnected and was unable to automatically reconnect, or it wasn't able to ever reach the 'ready' state (situations A and D)))
 					if (this.voiceConnection.state.status !== VoiceConnectionStatus.Destroyed)
@@ -210,20 +209,21 @@ export class MusicSubscription {
 	 */
 	async processQueue() {
 		this.wait = false;
-		console.log('processing queue. what will be taken out? ', this.queue.get(0)?.youtube_title ?? this.queue.get(0)?.spotify_title)
 
+		const unlockQueue = await this.queue.acquireLock();
 
 		// If the queue is locked (already being processed), is empty, or the audio player is already playing something, return
 		if (this.queueProcessLock || this.audioPlayer.state.status !== AudioPlayerStatus.Idle || this.queue.length() === 0) {
 			console.log('Process Queue cancelled because queue lock, audio player status not being idle, or nothing in queue ')
-			return;
+			return unlockQueue();
 		}
+
+		console.log('Processing queue, taking out: ', this.queue.get(0)?.youtube_title ?? this.queue.get(0)?.spotify_title)
 
 		// Lock the queue to guarantee that processQueue() never runs concurrently (other calls are completely ignored, not waited for like with our mutex lock for queue access)
 		this.queueProcessLock = true;
 
 		// Take the first item from the queue. This is guaranteed to exist due to the non-empty check above.
-		const unlockQueue = await this.queue.acquireLock();
 		const nextTrack = this.queue.dequeue();
 		unlockQueue();
 
@@ -233,7 +233,6 @@ export class MusicSubscription {
 			this.audioPlayer.play(resource);
 			this.queueProcessLock = false;
 		} catch (error) {
-			console.log(error)
 			// If an error occurred, try the next item of the queue instead
 			// 99% of the time, we are able to recover from the error (see spawnErrorHandler inside track.js) by downloading a different youtube URL, but in
 			// the rare cases where a track is completely unable to play, we need this code block to try the next one and kickstart the natural queue flow
