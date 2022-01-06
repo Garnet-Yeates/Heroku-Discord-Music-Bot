@@ -107,14 +107,14 @@ export class Track {
                     this.subscription.lastTextChannel.send(`Finished playing ${"`" + this.youtube_title + "`"}. There are currently ${"`" + this.subscription.queue.length() + "`"} songs left in the queue`)
 	}
 
-	onError() {
+	onError(error) {
 		if (this.errored)
 			return;
 		this.errored = true;
 
-		interaction.followUp({ content: `Error: ${error}` });
+		console.log('Track.onError called', this, error);
 
-		interaction.followUp({ content: `Error.message: ${error.message}` });
+		this.subscription.lastTextChannel.send(`Ran into an error: ${error}`)
 	}
 
 	/**
@@ -220,7 +220,7 @@ export class Track {
 							// wait back to false. After we call stop() below we want to make sure that another random track doesn't start playing because we want to give this track a chance to play, hence using 'wait'
 							this.subscription.wait = true;
 
-							// Call stop(true) (via skip) to force stop AudioPlayer. Right now the track is in the buffering state, and if we don't force stop it, it will end up in the 'playing state' for a brief moment
+							// Right now the track is in the buffering state, and if we don't force stop it using skip(), it will end up in the 'playing state' for a brief moment
 							// before the AudioPlayer realizes it is broken. This means onStart() will get called when we don't want it to because it's not actually starting!
 							this.subscription.skip();
 
@@ -230,6 +230,9 @@ export class Track {
 							unlockQueue();
 
 							void this.subscription.processQueue();
+						}
+						else {
+							this.subscription.skip(); // Force stop the AudioPlayer so it never reaches 'playing' state from buffering state for a brief moment (we don't want onStart() to get called for a track that completely failed to play)
 						}
 					}
 

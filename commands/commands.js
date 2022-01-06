@@ -43,18 +43,18 @@ const commands = {
 
             const enqueueYoutubeTrack = commands.play.enqueueYoutubeTrack;
 
-            // if now is set to true it means this execute function was called through the /now command, meaning the current song will get skipped and it will play the requested song immediately
+            // if beginningOfQueue is true, it enqueues it to the beginning of the queue instead of the end
+            // if now is set to true the current song will get skipped and it will play the requested song immediately
             now && (beginningOfQueue = true)
 
-            // if beginningOfQueue is true, it enqueues it to the beginning of the queue instead of the end
-            interaction.deferReply();
+            await interaction.deferReply();
 
             // If the command has an argument, they are not using /play in order to unpause, but rather to queue up a new track
             const userInput = interaction.options.getString('song');
 
             // Always call isInteractionValidForMusic before calling getOrCreateSubscription to make sure the fields that the subscription needs are defined
             if (!isInteractionValidForMusic(interaction)) {
-                interaction.followUp('You must be a user and inside of a voice channel to use this command');
+                await interaction.followUp('You must be a user and inside of a voice channel to use this command');
                 return;
             }
 
@@ -77,12 +77,12 @@ const commands = {
                         // Attempt to create a Track from the user's supplied URL. 
                         const track = await Track.fromURL({ youtube_url, requestedBy });
                         if (!track)
-                            return interaction.followUp(`Error queuing up track. Make sure the URL is valid, or try again later`);
+                            return await interaction.followUp(`Error queuing up track. Make sure the URL is valid, or try again later`);
 
                         const subscription = getOrCreateSubscription(voiceChannel, textChannel)
 
                         if (!await ensureConnectionIsReady(subscription))
-                            return interaction.followUp('Could not establish a voice connection within 15 seconds, please try again later');
+                            return await interaction.followUp('Could not establish a voice connection within 15 seconds, please try again later');
 
                         track.subscription = subscription;
 
@@ -94,14 +94,14 @@ const commands = {
 
                         // you cannot use /now or /next with spotify playlists
                         if (beginningOfQueue)
-                            return interaction.followUp('This command cannot be used with spotify playlists');
+                            return await interaction.followUp('This command cannot be used with spotify playlists');
 
                         const spotify_url = userInput;
 
                         const spotifySongs = await getSpotifySongsFromPlaylist(spotify_url);
 
                         if (!spotifySongs)
-                            return interaction.followUp('Could not get playlist information. Please make sure spotify URL is correct, or try again later')
+                            return await interaction.followUp('Could not get playlist information. Please make sure spotify URL is correct, or try again later')
 
                         // Map all of our spotify songs to spotify tracks. These spotify tracks differ from youtube tracks in the sense that their youtube_title and youtube_url (and alternates)
                         // are not calculated until the moment that the track is about to be played
@@ -116,7 +116,7 @@ const commands = {
                         const subscription = getOrCreateSubscription(voiceChannel, textChannel)
 
                         if (!await ensureConnectionIsReady(subscription))
-                            return interaction.followUp('Could not establish a voice connection within 15 seconds, please try again later');
+                            return await interaction.followUp('Could not establish a voice connection within 15 seconds, please try again later');
 
                         for (let track of spotifyTracks)
                             track.subscription = subscription;
@@ -128,7 +128,7 @@ const commands = {
 
                         void subscription.processQueue();
 
-                        return interaction.followUp(`Enqueued **${spotifyTracks.length}** tracks from the spotify playlist`)
+                        return await interaction.followUp(`Enqueued **${spotifyTracks.length}** tracks from the spotify playlist`)
                     }
 
                     // When they type /play <YOUTUBE_TITLE> (aka song name)
@@ -138,12 +138,12 @@ const commands = {
                         // Attempt to create a Track from the user's video URL
                         const track = await Track.fromSearch({ searchString: youtube_title, requestedBy });
                         if (!track)
-                            return interaction.followUp(`Could not find any tracks based on that search. Try using a less specific search`);
+                            return await interaction.followUp(`Could not find any tracks based on that search. Try using a less specific search`);
 
                         const subscription = getOrCreateSubscription(voiceChannel, textChannel)
 
                         if (!await ensureConnectionIsReady(subscription))
-                            return interaction.followUp('Could not establish a voice connection within 15 seconds, please try again later');
+                            return await interaction.followUp('Could not establish a voice connection within 15 seconds, please try again later');
 
                         track.subscription = subscription;
 
@@ -151,7 +151,7 @@ const commands = {
                     }
                 }
                 else {
-                    return interaction.followUp("You must be in a voice channel to use this command")
+                    return await interaction.followUp("You must be in a voice channel to use this command")
                 }
 
             }
@@ -159,15 +159,15 @@ const commands = {
                 const subscription = subscriptions.get(interaction.guildId)
 
                 if (!subscription)
-                    return interaction.followUp("Not currently playing on this server");
+                    return await interaction.followUp("Not currently playing on this server");
 
                 if (subscription.audioPlayer.state.status !== AudioPlayerStatus.Paused)
-                    return interaction.followUp("Cannot unpause, the audio player is not currently paused. If you are trying to queue up a song, make sure you see the [song] parameter appear while typing the command");
+                    return await interaction.followUp("Cannot unpause, the audio player is not currently paused. If you are trying to queue up a song, make sure you see the [song] parameter appear while typing the command");
 
                 subscription.lastTextChannel = interaction.channel;
 
                 subscription.audioPlayer.pause();
-                return interaction.followUp("Unpaused")
+                return await interaction.followUp("Unpaused")
             }
         },
 
@@ -184,10 +184,10 @@ const commands = {
                 if (now)
                     subscription.skip();
                 void subscription.processQueue();
-                deferred_interaction.followUp(`Enqueued ${"`" + track.youtube_title + "`"} at position ${"`0`"}`);
+                await deferred_interaction.followUp(`Enqueued ${"`" + track.youtube_title + "`"} at position ${"`0`"}`);
             }
             else {
-                deferred_interaction.followUp(`Enqueued ${"`" + track.youtube_title + "`"} at position ${"`" + (subscription.queue.length()) + "`"}`);
+                await deferred_interaction.followUp(`Enqueued ${"`" + track.youtube_title + "`"} at position ${"`" + (subscription.queue.length()) + "`"}`);
                 subscription.queue.enqueue(track);
                 unlockQueue();
                 void subscription.processQueue();
@@ -241,15 +241,15 @@ const commands = {
             const subscription = subscriptions.get(interaction.guildId);
 
             if (!subscription)
-                return interaction.reply("Not currently playing on this server");
+                return await interaction.reply("Not currently playing on this server");
 
             if (subscription.audioPlayer.state.status === AudioPlayerStatus.Paused)
-                return interaction.reply("Already paused. You can use /play without entering a song name to unpause");
+                return await interaction.reply("Already paused. You can use /play without entering a song name to unpause");
 
             subscription.lastTextChannel = interaction.channel;
 
             subscription.audioPlayer.pause();
-            return interaction.reply("Paused")
+            return await interaction.reply("Paused")
         }
     },
 
@@ -264,14 +264,14 @@ const commands = {
             const subscription = subscriptions.get(interaction.guildId);
 
             if (!subscription)
-                return interaction.reply("Not currently playing on this server");
+                return await interaction.reply("Not currently playing on this server");
 
             subscription.lastTextChannel = interaction.channel;
 
             // Wait for the mutex lock for our queue so we don't modify it concurrently. Also adds 'unlockQueueReply' to the interaction
             await subscription.queue.acquireLock(interaction);
             subscription.queue.shuffle();
-            return interaction.unlockQueueReply("Shuffled!")
+            return await interaction.unlockQueueReply("Shuffled!")
         }
     },
 
@@ -286,14 +286,14 @@ const commands = {
             const subscription = subscriptions.get(interaction.guildId);
 
             if (!subscription)
-                return interaction.reply("Not currently playing on this server");
+                return await interaction.reply("Not currently playing on this server");
 
             subscription.lastTextChannel = interaction.channel;
 
             // Wait for the mutex lock for our queue so we don't modify it concurrently. Also adds 'unlockQueueReply' to the interaction
             await subscription.queue.acquireLock(interaction);
             subscription.queue.clear();
-            return interaction.unlockQueueReply("Queue Cleared!")
+            return await interaction.unlockQueueReply("Queue Cleared!")
         }
     },
 
@@ -311,7 +311,7 @@ const commands = {
             const subscription = subscriptions.get(interaction.guildId);
 
             if (!subscription)
-                return interaction.reply({ content: "Not currently playing on this server", ephemeral: true })
+                return await interaction.reply({ content: "Not currently playing on this server", ephemeral: true })
 
             subscription.lastTextChannel = interaction.channel;
 
@@ -321,7 +321,7 @@ const commands = {
             const length = subscription.queue.length();
 
             if (length == 0)
-                return interaction.unlockQueueReply({ content: "The queue is currently empty", ephemeral: true })
+                return await interaction.unlockQueueReply({ content: "The queue is currently empty", ephemeral: true })
 
             // If the command has an argument, they are not using /play in order to unpause, but rather to queue up a new track
             let page = Number(interaction.options.getString('page'));
@@ -347,7 +347,7 @@ const commands = {
                 string += '\n' + "`" + currIndex++ + "` " + "`" + (track.youtube_title || track.spotify_title) + "`"
             }
 
-            interaction.unlockQueueReply({ content: string, ephemeral: true })
+            await interaction.unlockQueueReply({ content: string, ephemeral: true })
         }
 
     },
@@ -370,7 +370,7 @@ const commands = {
             const subscription = subscriptions.get(interaction.guildId);
 
             if (!subscription)
-                return interaction.reply("Not currently playing on this server");
+                return await interaction.reply("Not currently playing on this server");
 
             subscription.lastTextChannel = interaction.channel;
 
@@ -380,38 +380,38 @@ const commands = {
             const length = subscription.queue.length();
 
             if (length < 2)
-                return interaction.unlockQueueReply("If you swap a melon with a melon what do you get? A melon");
+                return await interaction.unlockQueueReply("If you swap a melon with a melon what do you get? A melon");
 
             if (!interaction.options.getString('index1'))
-                return interaction.unlockQueueReply("At least 1 index must be supplied. If only one is supplied, it will swap with index `0`");
+                return await interaction.unlockQueueReply("At least 1 index must be supplied. If only one is supplied, it will swap with index `0`");
 
             // If the command has an argument, they are not using /play in order to unpause, but rather to queue up a new track
             const index1 = overrideIndex1 ?? Number(interaction.options.getString('index1').trim());
             if (Number.isNaN(index1))
-                return interaction.unlockQueueReply("`index1` must be a number! To see indices, type /queue")
+                return await interaction.unlockQueueReply("`index1` must be a number! To see indices, type /queue")
 
             const index2 = overrideIndex2 ?? Number(interaction.options.getString('index2')?.trim() ?? 0);
             if (Number.isNaN(index2))
-                return interaction.unlockQueueReply("`index2` must be a number! To see indices, type /queue")
+                return await interaction.unlockQueueReply("`index2` must be a number! To see indices, type /queue")
 
             if (index1 >= length)
-                return interaction.unlockQueueReply("`index1` is too high (the highest index in the queue is `" + (length - 1) + "`)")
+                return await interaction.unlockQueueReply("`index1` is too high (the highest index in the queue is `" + (length - 1) + "`)")
 
             if (index2 >= length)
-                return interaction.unlockQueueReply("`index2` is too high (the highest index in the queue is `" + (length - 1) + "`)")
+                return await interaction.unlockQueueReply("`index2` is too high (the highest index in the queue is `" + (length - 1) + "`)")
 
             if (index1 < 0)
-                return interaction.unlockQueueReply("`index1` is too low (cannot be below `0`)")
+                return await interaction.unlockQueueReply("`index1` is too low (cannot be below `0`)")
 
             if (index2 < 0)
-                return interaction.unlockQueueReply("`index2` is too low (cannot be below `0`)")
+                return await interaction.unlockQueueReply("`index2` is too low (cannot be below `0`)")
 
             if (index1 === index2)
-                return interaction.unlockQueueReply("If you swap a melon with a melon what do you get? A melon");
+                return await interaction.unlockQueueReply("If you swap a melon with a melon what do you get? A melon");
 
             subscription.queue.swap(index1, index2)
 
-            return interaction.unlockQueueReply("Swapped positions `" + index1 + "` and `" + index2 + "` in the queue")
+            return await interaction.unlockQueueReply("Swapped positions `" + index1 + "` and `" + index2 + "` in the queue")
         }
     },
 
@@ -426,19 +426,19 @@ const commands = {
             const subscription = subscriptions.get(interaction.guildId);
 
             if (!subscription)
-                return interaction.reply("Not currently playing on this server");
+                return await interaction.reply("Not currently playing on this server");
 
             subscription.lastTextChannel = interaction.channel;
 
             // If it is currently loading a track.. 
             const { status } = subscription.audioPlayer.state;
             if (status === AudioPlayerStatus.Idle || status === AudioPlayerStatus.Buffering)
-                return interaction.reply("Cannot skip since a track is not playing yet")
+                return await interaction.reply("Cannot skip since a track is not playing yet")
 
             const skipping = subscription.nowPlaying();
 
             subscription.skip();
-            return interaction.reply("Skipped `" + skipping.youtube_title + "`")
+            return await interaction.reply("Skipped `" + skipping.youtube_title + "`")
         }
     },
 
@@ -453,13 +453,13 @@ const commands = {
             const subscription = subscriptions.get(interaction.guildId);
 
             if (!subscription)
-                return interaction.reply("Not currently playing on this server");
+                return await interaction.reply("Not currently playing on this server");
 
             subscription.lastTextChannel = interaction.channel;
 
             subscription.stop();
 
-            return interaction.reply("Stopped playing on this server")
+            return await interaction.reply("Stopped playing on this server")
         }
     },
 
@@ -478,7 +478,7 @@ const commands = {
             const subscription = subscriptions.get(interaction.guildId);
 
             if (!subscription)
-                return interaction.reply("Not currently playing on this server");
+                return await interaction.reply("Not currently playing on this server");
 
             subscription.lastTextChannel = interaction.channel;
 
@@ -486,20 +486,20 @@ const commands = {
             const unlockQueue = await subscription.queue.acquireLock(interaction);
 
             if (!interaction.options.getString('index'))
-                return interaction.unlockQueueReply("A queue `index` must be specified for this command`");
+                return await interaction.unlockQueueReply("A queue `index` must be specified for this command`");
 
             const index = Number(interaction.options.getString('index').trim())
             if (Number.isNaN(index))
-                return interaction.unlockQueueReply("`index` must be a number! To see indices, type /queue")
+                return await interaction.unlockQueueReply("`index` must be a number! To see indices, type /queue")
 
             if (index <= 0) {
-                return interaction.unlockQueueReply("Replacing with index `0` is the same as /skip. Just use /skip")
+                return await interaction.unlockQueueReply("Replacing with index `0` is the same as /skip. Just use /skip")
             }
 
             const length = subscription.queue.length();
 
             if (index >= length) {
-                return interaction.unlockQueueReply("`index` too high (the highest index in the queue is `" + (length - 1) + "`)")
+                return await interaction.unlockQueueReply("`index` too high (the highest index in the queue is `" + (length - 1) + "`)")
             }
 
             const trackAtIndex = subscription.queue.get(index);
@@ -539,23 +539,23 @@ const commands = {
             const unlockQueue = await subscription.queue.acquireLock(interaction);
 
             if (!interaction.options.getString('index'))
-                return interaction.unlockQueueReply("A queue index must be specified for this command`");
+                return await interaction.unlockQueueReply("A queue index must be specified for this command`");
 
             const length = await subscription.queue.length();
 
             const index = Number(interaction.options.getString('index').trim())
             if (Number.isNaN(index))
-                return interaction.unlockQueueReply("`index` must be a number! To see indices, use /queue")
+                return await interaction.unlockQueueReply("`index` must be a number! To see indices, use /queue")
 
             if (index <= 0) {
-                return interaction.unlockQueueReply("Jumping to index 0 is the same as /skip. Just use /skip")
+                return await interaction.unlockQueueReply("Jumping to index 0 is the same as /skip. Just use /skip")
             }
 
             if (index >= length) {
-                return interaction.unlockQueueReply("`index` too high (the highest index in the queue is `" + (length - 1) + "`)")
+                return await interaction.unlockQueueReply("`index` too high (the highest index in the queue is `" + (length - 1) + "`)")
             }
 
-            interaction.reply('Skipping the current song and jumping to position `' + index + '`')
+            await interaction.reply('Skipping the current song and jumping to position `' + index + '`')
             subscription.queue.jump(index);
             unlockQueue();
 
@@ -579,7 +579,7 @@ const commands = {
             const subscription = subscriptions.get(interaction.guildId);
 
             if (!subscription)
-                return interaction.reply("Not currently playing on this server");
+                return await interaction.reply("Not currently playing on this server");
 
             subscription.lastTextChannel = interaction.channel;
 
@@ -587,25 +587,25 @@ const commands = {
             const unlockQueue = await subscription.queue.acquireLock(interaction);
 
             if (!interaction.options.getString('index'))
-                return interaction.unlockQueueReply("A queue index must be specified for this command`");
+                return await interaction.unlockQueueReply("A queue index must be specified for this command`");
 
             const length = subscription.queue.length();
 
             const index = Number(interaction.options.getString('index').trim())
             if (Number.isNaN(index))
-                return interaction.unlockQueueReply("`index` must be a number! To see indices, use /queue")
+                return await interaction.unlockQueueReply("`index` must be a number! To see indices, use /queue")
 
             if (index < 0) {
-                return interaction.unlockQueueReply("`index` too low. To see indices, use /queue")
+                return await interaction.unlockQueueReply("`index` too low. To see indices, use /queue")
             }
 
             if (index >= length) {
-                return interaction.unlockQueueReply("`index` too high (the highest index in the queue is `" + (length - 1) + "`)")
+                return await interaction.unlockQueueReply("`index` too high (the highest index in the queue is `" + (length - 1) + "`)")
             }
 
             const trackAtIndex = subscription.queue.get(index);
 
-            interaction.reply('Removing the song at position`' + index + '` (`' + (trackAtIndex.youtube_title ?? trackAtIndex.spotify_title) + '`) from the queue')
+            await interaction.reply('Removing the song at position`' + index + '` (`' + (trackAtIndex.youtube_title ?? trackAtIndex.spotify_title) + '`) from the queue')
 
             subscription.queue.remove(index);
             unlockQueue();
@@ -624,13 +624,13 @@ const commands = {
             const subscription = subscriptions.get(interaction.guildId);
 
             if (!subscription)
-                return interaction.reply("Not currently playing on this server");
+                return await interaction.reply("Not currently playing on this server");
 
             subscription.lastTextChannel = interaction.channel;
 
             // isInteractionValidForMusic() makes sure they are a GuildMember inside of a voice channe 
             if (!isInteractionValidForMusic(interaction))
-                return interaction.reply('You must be a user and inside of a voice channel to use this command');
+                return await interaction.reply('You must be a user and inside of a voice channel to use this command');
 
             // Grabs the existing Music Subscription for this guild, or creates a new one if one does not already exist
             const voiceChannel = interaction.member.voice.channel;
@@ -644,7 +644,7 @@ const commands = {
                 adapterCreator: voiceChannel.guild.voiceAdapterCreator,
             });
 
-            return interaction.reply("Moved!")
+            return await interaction.reply("Moved!")
         }
     },
 }

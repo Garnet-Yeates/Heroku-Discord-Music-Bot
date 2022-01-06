@@ -19,7 +19,6 @@ const wait = promisify(setTimeout);
  */
 export const subscriptions = new Map();
 
-
 /**
  * Looks for an existing Music Subscription for the guild that this voice channel exists on. If one doesn't already exist, it will
  * automatically create one. If one already exists, it will move it to the specified voice channel. It will also update the subscription's
