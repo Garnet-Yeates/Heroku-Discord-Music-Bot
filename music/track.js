@@ -1,4 +1,4 @@
-import { createAudioResource, demuxProbe } from '@discordjs/voice';
+import { AudioPlayerStatus, createAudioResource, demuxProbe, entersState, VoiceConnectionStatus } from '@discordjs/voice';
 
 // in the tutorial, they import { getInfo } as a named export but that doesn't work with this ES module so I do ytdl.getInfo (appears to work fine)
 import ytdl from 'ytdl-core';
@@ -57,8 +57,9 @@ export class Track {
 	// Lifecycle functions onStart, onFinish, and onError are guaranteed to only be called once. Why must we guarantee this? e.g: any time the audioPlayer transitions
 	// to the playing state, onStart is called so if we don't wrap it, then making the bot move voice channels will cause AudioPlayer state change
 	// (as a result of going from AutoPaused to Playing during the interruption of the VoiceConnection), meaning onStart() will get called again.
-	onStart() {
+	async onStart() {
 
+		// Ensure this function is only called once
 		if (this.started)
 			return;
 		this.started = true;
@@ -85,36 +86,45 @@ export class Track {
 		if (this.spotify_title) {
 
 			if (this.spotify_authors) {
-				this.subscription.lastTextChannel.guild.members.cache.get(client.user.id).setNickname(`garnbot [${this.getSpotifyAuthorString(1)}]`)
+			//	this.subscription.lastTextChannel.guild.members.cache.get(client.user.id).setNickname(`garnbot [${this.getSpotifyAuthorString(1)}]`)
 			}
 
 			if (this.spotify_image_url) {
 				embed.setThumbnail(this.spotify_image_url)
 				delete messageData.files;
 			}
+
 			embed.setTitle(`${this.getSpotifyAuthorString(1)} - ${this.spotify_title} `)
 			embed.setDescription(`Youtube Song Name: ${"`" + this.youtube_title + "`"} \n ${embed.description}`)
 		}
-		this.subscription.lastTextChannel.send(messageData);
+
+		await this.subscription.lastTextChannel.send(messageData);
 	}
 
-	onFinish() {
+	async onFinish() {
+
+		// Ensure this function is only called once
 		if (this.finished)
 			return;
 		this.finished = true;
 
+		// If this track has a youtube-dl-exec process running, call the cancel() function after 30 seconds
+		setTimeout(this.process.cancel, 30e3);
+
 		this.subscription.lastTextChannel.guild.members.cache.get(client.user.id).setNickname('garnbot')
-                    this.subscription.lastTextChannel.send(`Finished playing ${"`" + this.youtube_title + "`"}. There are currently ${"`" + this.subscription.queue.length() + "`"} songs left in the queue`)
+		await this.subscription.lastTextChannel.send(`Finished playing ${"`" + this.youtube_title + "`"}. There are currently ${"`" + this.subscription.queue.length() + "`"} songs left in the queue`)
 	}
 
-	onError(error) {
+	async onError(error) {
+
+		// Ensure this function is only called once
 		if (this.errored)
 			return;
 		this.errored = true;
 
 		console.log('Track.onError called', this, error);
 
-		this.subscription.lastTextChannel.send(`Ran into an error: ${error}`)
+		await this.subscription.lastTextChannel.send(`Ran into an error: ${error}`)
 	}
 
 	/**
@@ -123,8 +133,10 @@ export class Track {
 	 */
 	createAudioResource() {
 
-		this.downloadFailed = false;
-		console.log('CreateAudioResource called for: ' + (this.youtube_title || this.spotify_title))
+		this.finished = false;
+		this.started = false;
+
+		console.log('CreateAudioResource called for: ' + (this.youtube_title ?? this.spotify_title))
 
 		return new Promise((resolve, reject) => {
 
@@ -159,26 +171,28 @@ export class Track {
 				);
 
 				const stream = process.stdout;
+				this.process = process;
 
 				if (!stream) {
 					reject(new Error('No stdout'));
 					return;
 				}
-				
+
 				// This is our errorHandler that is referenced below (process.once('spawn').catch(spawnErrorHandler))
 				// It handles errors that occur when the process that we get from youtubedl.exec spawns. What it does is
 				// it re-queues this track again at the beginning of the queue, and freezes the queue temporarily to allow
 				// this track to get processed again. This is all in an attempt to try loading it again a couple of times (max 3)
 				// if loading fails after 3 attempts, the track is skipped
 				const spawnErrorHandler = async (error) => {
-					
-					if (!process.killed) process.kill();
 
-					if (error.shortMessage.includes("ERR_STREAM_PREMATURE_CLOSE")) {
-						console.log("ERR_STREAM_PREMATURE_CLOSE (most likely the song was skipped)")
-						stream.resume();
-						return;
+					if (!process.killed) {
+						process.kill();
 					}
+
+					stream.resume();
+
+					if (error.shortMessage.includes("ERR_STREAM_PREMATURE_CLOSE")) 
+						return console.log("ERR_STREAM_PREMATURE_CLOSE (Skipped?)")
 
 					console.log("Process spawning error:", error.shortMessage);
 
@@ -186,6 +200,12 @@ export class Track {
 					// In rarer cases, sometimes a youtube URL doesn't work at all with youtubedl.exec no matter how many times we try
 					// so in the casse where they didn't specify a specific youtube URL, we can look for alternative URLs for them
 					if (error.shortMessage.toLowerCase().includes("exit code 1")) {
+
+						// Set started to true to prevent onStart() from getting called (audio player briefly reaches playing state before this error bubbles up)
+						this.started = true;
+
+						// Set finished to true to prevent onFinish() from getting called (we only want onFinish to be called when it ends successfully, not failurely)
+						this.finished = true;
 
 						this.currentReplayAttempt++;
 
@@ -200,29 +220,24 @@ export class Track {
 								// If we have an alternate video at this position...
 								if (alternateVideo) {
 
-									this.subscription.lastTextChannel.send(`Failed to play ${"`" + this.youtube_title + "`"}, Trying again with a different youtube URL (${4 - this.currentReplayAttempt} attempts left after this attempt)`)
+									await this.subscription.lastTextChannel.send(`Failed to play ${"`" + this.youtube_title + "`"}, Trying again with a different youtube URL (${4 - this.currentReplayAttempt} attempts left after this attempt)`)
 
 									this.youtube_title = alternateVideo.youtube_title;
 									this.youtube_url = alternateVideo.youtube_url;
 									this.durationTimestamp = alternateVideo.durationTimestamp;
 								}
 								else {
-									this.subscription.lastTextChannel.send(`Failed to play ${"`" + this.youtube_title + "`"}, Could not find an alternate youtube URL, trying with the same one (${4 - this.currentReplayAttempt} attempts left after this attempt)`)
+									await this.subscription.lastTextChannel.send(`Failed to play ${"`" + this.youtube_title + "`"}, Could not find an alternate youtube URL, trying with the same one (${4 - this.currentReplayAttempt} attempts left after this attempt)`)
 								}
 							}
 							else {
-								this.subscription.lastTextChannel.send(`Failed to play ${"`" + this.youtube_title + "`"}, Trying again (${4 - this.currentReplayAttempt} attempts left after this attempt)`)
+								await this.subscription.lastTextChannel.send(`Failed to play ${"`" + this.youtube_title + "`"}, Trying again (${4 - this.currentReplayAttempt} attempts left after this attempt)`)
 							}
 
-							this.downloadFailed = true; // Set errored to 'true' so that the next call to onFinish() as a result of the track ending abruptly doesn't get called (methods are wrapped so they only call once)
-
-							// Tells the subscription event handlers to not automatically process the queue as a result of the audio player going idle. Calls to processQueue() will automatically set 
-							// wait back to false. After we call stop() below we want to make sure that another random track doesn't start playing because we want to give this track a chance to play, hence using 'wait'
+							// TL;DR: goes from idle to buffering to playing to idle sometime within this exit code 1 block
+							// Tells the subscription event handlers to not automatically process the queue as a result of the audio player going idle. Calls to processQueue() will automatically set wait back to false
+							// most of the time, the track is already re-queued before the event handlers are even called, but this is just a safeguard in case this code loses the race condition to the event handler noticing the idle state
 							this.subscription.wait = true;
-
-							// Right now the track is in the buffering state, and if we don't force stop it using skip(), it will end up in the 'playing state' for a brief moment
-							// before the AudioPlayer realizes it is broken. This means onStart() will get called when we don't want it to because it's not actually starting!
-							this.subscription.skip();
 
 							// Because of our calls to wait() and stop(), we can ensure that the track will be the one that plays next
 							const unlockQueue = await this.subscription.queue.acquireLock();
@@ -232,22 +247,22 @@ export class Track {
 							void this.subscription.processQueue();
 						}
 						else {
+							await this.subscription.lastTextChannel.send(`Failed to play ${"`" + this.youtube_title + "`"}`);
 							this.subscription.skip(); // Force stop the AudioPlayer so it never reaches 'playing' state from buffering state for a brief moment (we don't want onStart() to get called for a track that completely failed to play)
 						}
 					}
 
-					stream.resume();
 					reject("Error occured during the spawn of the process downloaded from youtube-download-exec");
 				};
-
 
 				process.once('spawn', async () => {
 					try {
 						const { stream: probedStream } = await demuxProbe(stream);
 
-						// Any time you see audioPlayer.state.audioResource.metaData (like in subscription.js) you know it's referring to the current track
+						// Any time you see audioPlayer.state.audioResource.metadata (like in subscription.js) you know it's referring to the current track
 						resolve(createAudioResource(probedStream, { metadata: this }));
-					} catch (err) {
+					} 
+					catch (err) {
 						console.log('demuxProbe ran into an error', err.shortMessage);
 						reject(err)
 					}

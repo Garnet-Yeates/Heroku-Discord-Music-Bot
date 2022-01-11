@@ -437,8 +437,8 @@ const commands = {
 
             const skipping = subscription.nowPlaying();
 
-            subscription.skip();
-            return await interaction.reply("Skipped `" + skipping.youtube_title + "`")
+            await interaction.reply("Skipping `" + skipping.youtube_title + "`")
+            return subscription.skip();
         }
     },
 
@@ -457,7 +457,7 @@ const commands = {
 
             subscription.lastTextChannel = interaction.channel;
 
-            subscription.stop();
+            subscription.terminate();
 
             return await interaction.reply("Stopped playing on this server")
         }

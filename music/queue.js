@@ -14,7 +14,6 @@ export default class Queue {
         this.internal = array;
     }
 
-
 	getShallowClone() {
 		const a = [];
 		this.internal.forEach((item) => a.push(item));
@@ -42,9 +41,9 @@ export default class Queue {
     async acquireLock(interaction) {
         const unlockQueue = await this.queueAccessMutex.acquire()
         if (interaction) {
-            interaction.unlockQueueReply = (msg) => {
+            interaction.unlockQueueReply = async (msg) => {
                 unlockQueue();
-                interaction.reply(msg);
+                await interaction.reply(msg);
             }
         }
         return unlockQueue;

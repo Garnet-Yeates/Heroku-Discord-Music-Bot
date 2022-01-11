@@ -117,7 +117,7 @@ export class MusicSubscription {
 			// Whenever voice connection is destroyed, this subscription will also be destroyed and the queue will be lost for this guild
 			else if (newState.status === VoiceConnectionStatus.Destroyed) {
 				console.log("The state of the voice connection changed to 'destroyed' so this subscription will end and the queue will be lost")
-				this.stop();
+				this.terminate();
 			}
 
 			// In the Signalling or Connecting states, we set a 15 second time limit for the connection to become ready before destroying it. This makes
@@ -138,6 +138,7 @@ export class MusicSubscription {
 
 		// Attach logic to the AudioPlayer to implement an event driven queue that doesn't lock/freeze up (unless we want it to)
 		this.audioPlayer.on('stateChange', async (oldState, newState) => {
+
 			console.log(`AudioPlayer state changed from ${oldState.status} to ${newState.status}`)
 
 			// If the Idle state is entered from a non-Idle state, it means that an audio resource has finished playing. It could also mean that it went from the Buffering state to
@@ -145,28 +146,28 @@ export class MusicSubscription {
 			// the track to try to replay
 			if (newState.status === AudioPlayerStatus.Idle && oldState.status !== AudioPlayerStatus.Idle) {
 
-				console.log('Situation E: AudioPlayer changed from non idle to idle, so the queue will be processed again since the track is done playing. If a new track is not playing within 30 seconds the vc will be destroyed which will end this subscription');
+				console.log('Situation E: AudioPlayer changed from non idle to idle, so the queue will be processed again since the track is done playing. If a new track is not playing within 90 seconds the vc will be destroyed which will end this subscription');
 
-				// When a track fails to download (exit code 1 catch inside track.js), downloadFailed is set to true so that the resulting call to 'onFinish' doesn't happen. Remember, onFinish
-				// can only be called once, and we want it to be called when the track actually finishes (not when it fails to download and goes from Buffering to Idle state)
 				const currentTrack = (oldState.resource).metadata;
-				if (!currentTrack.downloadFailed)
-					(oldState.resource).metadata.onFinish();
+				currentTrack.onFinish();
 
 				// If wait is set to true for this subscription, the queue won't process naturally as a result of the AudioPlayer entering the idle state
-				!this.wait && void this.processQueue();
+				if (!this.wait) {
+					void this.processQueue();
+				}
 
 				try {
-					await entersState(this.audioPlayer, AudioPlayerStatus.Playing, 30_000);
+					await entersState(this.audioPlayer, AudioPlayerStatus.Playing, 90e3);
 				}
 				catch {
-					this.lastTextChannel.send("Left the channel because you guys weren't giving me attention :(")
+					if (!this.destroyed) {
+						await this.lastTextChannel.send("Left the channel because you guys weren't giving me attention :(")
 
-					// If it is not already destroyed (e.g: it was disconnected and was unable to automatically reconnect, or it wasn't able to ever reach the 'ready' state (situations A and D)))
-					if (this.voiceConnection.state.status !== VoiceConnectionStatus.Destroyed)
-						this.voiceConnection.destroy();
+						// If it is not already destroyed (e.g: it was disconnected and was unable to automatically reconnect, or it wasn't able to ever reach the 'ready' state (situations A and D)))
+						if (this.voiceConnection.state.status !== VoiceConnectionStatus.Destroyed)
+							this.voiceConnection.destroy();
+					}
 				}
-
 			}
 
 			// If the Playing state has been entered, then a new track has started playback ***OR*** it recovered from one of the situations above (such as situation A) (which is why we wrap the methods to ensure they are only called once).
@@ -188,14 +189,18 @@ export class MusicSubscription {
 	}
 
 	// Terminates this subscription
-	async stop() {
+	async terminate() {
+		this.destroyed = true;
+
 		const unlockQueue = await this.queue.acquireLock();
 		this.queue.clear();
 		unlockQueue();
+
 		this.audioPlayer.stop(true);
-		this.destroyed = true;
+
 		if (this.voiceConnection.state.status !== VoiceConnectionStatus.Destroyed)
 			this.voiceConnection.destroy();
+
 		subscriptions.delete(this.guildId);
 	}
 

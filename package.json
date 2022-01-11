@@ -5,7 +5,7 @@
   "main": "index.js",
   "engines": {
     "node": "16.x",
-    "npm": "7.x"
+    "npm": "8.x"
   },
   "scripts": {
     "start": "node --inspect index.js"
