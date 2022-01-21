@@ -395,11 +395,11 @@ const commands = {
                 return await interaction.unlockQueueReply("`index2` must be a number! To see indices, type /queue")
 
             if (index1 >= length)
-                return await interaction.unlockQueueReply("`index1` is too high (the highest index in the queue is `" + (length - 1) + "`)")
+                index1 = length - 1;
 
             if (index2 >= length)
-                return await interaction.unlockQueueReply("`index2` is too high (the highest index in the queue is `" + (length - 1) + "`)")
-
+                index2 = length - 1;
+                
             if (index1 < 0)
                 return await interaction.unlockQueueReply("`index1` is too low (cannot be below `0`)")
 
@@ -605,7 +605,7 @@ const commands = {
 
             const trackAtIndex = subscription.queue.get(index);
 
-            await interaction.reply('Removing the song at position`' + index + '` (`' + (trackAtIndex.youtube_title ?? trackAtIndex.spotify_title) + '`) from the queue')
+            await interaction.reply('Removing the song at position `' + index + '` (`' + (trackAtIndex.youtube_title ?? trackAtIndex.spotify_title) + '`) from the queue')
 
             subscription.queue.remove(index);
             unlockQueue();

@@ -211,6 +211,11 @@ export class Track {
 
 						if (this.currentReplayAttempt < 5) {
 
+							// TL;DR: goes from idle to buffering to playing to idle sometime within this exit code 1 block
+							// Tells the subscription event handlers to not automatically process the queue as a result of the audio player going idle. Calls to processQueue() will automatically set wait back to false
+							// most of the time, the track is already re-queued before the event handlers are even called, but this is just a safeguard in case this code loses the race condition to the event handler noticing the idle state
+							this.subscription.wait = true;
+
 							// After the second failed replay, it will switch the URL to an alternate one if one exists for the next attempt to load
 							if (this.currentReplayAttempt >= 2) {
 
@@ -233,11 +238,6 @@ export class Track {
 							else {
 								await this.subscription.lastTextChannel.send(`Failed to play ${"`" + this.youtube_title + "`"}, Trying again (${4 - this.currentReplayAttempt} attempts left after this attempt)`)
 							}
-
-							// TL;DR: goes from idle to buffering to playing to idle sometime within this exit code 1 block
-							// Tells the subscription event handlers to not automatically process the queue as a result of the audio player going idle. Calls to processQueue() will automatically set wait back to false
-							// most of the time, the track is already re-queued before the event handlers are even called, but this is just a safeguard in case this code loses the race condition to the event handler noticing the idle state
-							this.subscription.wait = true;
 
 							// Because of our calls to wait() and stop(), we can ensure that the track will be the one that plays next
 							const unlockQueue = await this.subscription.queue.acquireLock();
