@@ -24,7 +24,7 @@ client.once('ready', () => {
 });
 
 // Heroku Cycling
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
     subscriptions.forEach((subscription) => {
         await subscription.lastTextChannel.send("Daily Heroku restart cycle occurred (bot is restarting), queue will be lost")
         subscription.terminate();
